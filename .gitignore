@@ -1,0 +1,8 @@
+.git/
+frontend/node_modules/
+frontend/dist/
+frontend/src/write_probe.txt
+backend/target/
+backend/target*/
+backend/tmpdir/
+.cargo-target*/
