@@ -57,7 +57,7 @@ export function ImagesPanel(props: {
         <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
           <input
             className="rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Image name, e.g. nginx:latest"
+            placeholder="镜像名，例如 nginx:latest"
             value={props.newImage}
             onChange={(event) => props.onImageChange(event.target.value)}
           />
@@ -66,16 +66,16 @@ export function ImagesPanel(props: {
             onClick={props.onSubmit}
             disabled={props.loading}
           >
-            Pull Image
+            拉取镜像
           </button>
         </div>
 
         {props.pullTaskId && (
           <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-2">
             <div className="mb-1 text-xs text-slate-600">
-              Task: {props.pullTaskId} | Status: {props.pullStatus || "-"} {props.pullDone ? "(done)" : "(running)"}
+              任务：{props.pullTaskId} | 状态：{props.pullStatus || "-"} {props.pullDone ? "(已结束)" : "(进行中)"}
             </div>
-            <pre className="h-40 overflow-auto rounded bg-slate-900 p-2 text-xs text-slate-100">{props.pullLogs.join("\n") || "No logs"}</pre>
+            <pre className="h-40 overflow-auto rounded bg-slate-900 p-2 text-xs text-slate-100">{props.pullLogs.join("\n") || "暂无日志"}</pre>
           </div>
         )}
       </div>
@@ -84,23 +84,23 @@ export function ImagesPanel(props: {
         <Input
           value={props.filter.query}
           onChange={(query) => props.onFilterChange({ query })}
-          placeholder="Search (server-side)"
+          placeholder="搜索（服务端）"
           className="min-w-[220px] flex-1"
         />
-        <div className="ml-auto text-xs text-slate-500">Page {props.images.length}, displayed {sortedImages.length}, total {props.total}</div>
+        <div className="ml-auto text-xs text-slate-500">当前页 {props.images.length} 条，已展示 {sortedImages.length} 条，总计 {props.total} 条</div>
       </div>
 
       <div className="overflow-x-auto rounded border bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100">
             <tr>
-              <SortableTh label="Repository" active={sortBy === "repository"} direction={sortDirection} onToggle={() => toggleSort("repository")} />
+              <SortableTh label="仓库" active={sortBy === "repository"} direction={sortDirection} onToggle={() => toggleSort("repository")} />
               <SortableTh label="Tag" active={sortBy === "tag"} direction={sortDirection} onToggle={() => toggleSort("tag")} />
               <SortableTh label="ID" active={sortBy === "id"} direction={sortDirection} onToggle={() => toggleSort("id")} />
             </tr>
           </thead>
           <tbody>
-            {!sortedImages.length && <EmptyRow colSpan={3} text="No matching images" />}
+            {!sortedImages.length && <EmptyRow colSpan={3} text="没有匹配的镜像" />}
             {sortedImages.map((item, index) => {
               const repository = getImageRepository(item) || "<none>";
               const tag = getImageTag(item) || "-";

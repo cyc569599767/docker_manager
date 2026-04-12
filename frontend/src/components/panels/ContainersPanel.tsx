@@ -75,7 +75,7 @@ export function ContainersPanel(props: {
   return (
     <>
       <div className="mb-4 rounded border bg-white p-4">
-        <div className="mb-3 text-sm font-semibold text-slate-700">Create Container</div>
+        <div className="mb-3 text-sm font-semibold text-slate-700">创建容器</div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="flex gap-2">
@@ -84,7 +84,7 @@ export function ContainersPanel(props: {
               value={props.newContainer.image}
               onChange={(event) => props.onFieldChange("image", event.target.value)}
             >
-              <option value="">Select image</option>
+              <option value="">选择镜像</option>
               {props.imageOptions.map((option) => (
                 <option key={option} value={option}>
                   {option}
@@ -97,34 +97,34 @@ export function ContainersPanel(props: {
               onClick={props.onRefreshImages}
               disabled={props.loading}
             >
-              Refresh
+              刷新
             </button>
           </div>
 
-          <Input value={props.newContainer.name} onChange={(value) => props.onFieldChange("name", value)} placeholder="Optional container name" />
+          <Input value={props.newContainer.name} onChange={(value) => props.onFieldChange("name", value)} placeholder="可选：容器名称" />
 
           <div>
             <Input
               value={props.newContainer.network}
               onChange={(value) => props.onFieldChange("network", value)}
-              placeholder="Optional network, e.g. bridge"
+              placeholder="可选：网络名称，例如 bridge"
               className="w-full"
             />
             {!!props.networkOptions.length && (
-              <div className="mt-1 text-xs text-slate-500">Available: {props.networkOptions.join(" / ")}</div>
+              <div className="mt-1 text-xs text-slate-500">可用网络：{props.networkOptions.join(" / ")}</div>
             )}
           </div>
 
           <div className="rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            <div>Multi-value fields support newline or comma separation.</div>
-            <div>Volume example: /host/data:/app/data or data-volume:/app/data</div>
-            <div>Env example: APP_ENV=prod</div>
+            <div>多值字段支持换行或逗号分隔。</div>
+            <div>挂载示例：/host/data:/app/data 或 data-volume:/app/data</div>
+            <div>环境变量示例：APP_ENV=prod</div>
           </div>
 
           <TextAreaField
             value={props.newContainer.ports}
             onChange={(value) => props.onFieldChange("ports", value)}
-            placeholder={`Port mappings
+            placeholder={`端口映射
 8080:80
 8443:443`}
             rows={4}
@@ -133,7 +133,7 @@ export function ContainersPanel(props: {
           <TextAreaField
             value={props.newContainer.env}
             onChange={(value) => props.onFieldChange("env", value)}
-            placeholder={`Environment variables
+            placeholder={`环境变量
 APP_ENV=prod
 TZ=Asia/Shanghai`}
             rows={4}
@@ -142,7 +142,7 @@ TZ=Asia/Shanghai`}
           <TextAreaField
             value={props.newContainer.volumes}
             onChange={(value) => props.onFieldChange("volumes", value)}
-            placeholder={`Volumes
+            placeholder={`挂载卷
 /host/path:/container/path
 my-volume:/app/data`}
             rows={4}
@@ -151,7 +151,7 @@ my-volume:/app/data`}
           <TextAreaField
             value={props.newContainer.command}
             onChange={(value) => props.onFieldChange("command", value)}
-            placeholder={`Startup command (optional)
+            placeholder={`启动命令（可选）
 sh,-c,echo hello`}
             rows={4}
           />
@@ -161,7 +161,7 @@ sh,-c,echo hello`}
             onClick={props.onSubmit}
             disabled={props.loading}
           >
-            Create
+            创建容器
           </button>
         </div>
       </div>
@@ -170,21 +170,21 @@ sh,-c,echo hello`}
         <Input
           value={props.filter.query}
           onChange={(query) => props.onFilterChange({ ...props.filter, query })}
-          placeholder="Search (server-side)"
+          placeholder="搜索（服务端）"
           className="min-w-[220px] flex-1"
         />
         <SelectField
           value={props.filter.status}
           onChange={(status) => props.onFilterChange({ ...props.filter, status: status as ContainersFilter["status"] })}
           options={[
-            { value: "all", label: "All status" },
-            { value: "running", label: "Running" },
-            { value: "stopped", label: "Stopped" },
-            { value: "other", label: "Other" },
+            { value: "all", label: "全部状态" },
+            { value: "running", label: "运行中" },
+            { value: "stopped", label: "已停止" },
+            { value: "other", label: "其他" },
           ]}
         />
         <div className="ml-auto text-xs text-slate-500">
-          Page {props.containers.length}, displayed {sortedContainers.length}, total {props.total}
+          当前页 {props.containers.length} 条，已展示 {sortedContainers.length} 条，总计 {props.total} 条
         </div>
       </div>
 
@@ -192,14 +192,14 @@ sh,-c,echo hello`}
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100">
             <tr>
-              <SortableTh label="Name" active={sortBy === "name"} direction={sortDirection} onToggle={() => toggleSort("name")} />
-              <SortableTh label="Image" active={sortBy === "image"} direction={sortDirection} onToggle={() => toggleSort("image")} />
-              <SortableTh label="Status" active={sortBy === "status"} direction={sortDirection} onToggle={() => toggleSort("status")} />
-              <Th>Action</Th>
+              <SortableTh label="名称" active={sortBy === "name"} direction={sortDirection} onToggle={() => toggleSort("name")} />
+              <SortableTh label="镜像" active={sortBy === "image"} direction={sortDirection} onToggle={() => toggleSort("image")} />
+              <SortableTh label="状态" active={sortBy === "status"} direction={sortDirection} onToggle={() => toggleSort("status")} />
+              <Th>操作</Th>
             </tr>
           </thead>
           <tbody>
-            {!sortedContainers.length && <EmptyRow colSpan={4} text="No matching containers" />}
+            {!sortedContainers.length && <EmptyRow colSpan={4} text="没有匹配的容器" />}
             {sortedContainers.map((item, index) => {
               const id = getItemId(item);
               const name = getContainerName(item).replace("/", "") || id || "-";
@@ -219,10 +219,10 @@ sh,-c,echo hello`}
                   </Td>
                   <Td>
                     <div className="flex gap-2">
-                      <ActionButton onClick={() => props.onAction("start", id)} label="Start" disabled={props.loading || !id} />
-                      <ActionButton onClick={() => props.onAction("stop", id)} label="Stop" disabled={props.loading || !id} />
-                      <ActionButton onClick={() => props.onAction("restart", id)} label="Restart" disabled={props.loading || !id} />
-                      <ActionButton onClick={() => props.onAction("remove", id)} label="Remove" danger disabled={props.loading || !id} />
+                      <ActionButton onClick={() => props.onAction("start", id)} label="启动" disabled={props.loading || !id} />
+                      <ActionButton onClick={() => props.onAction("stop", id)} label="停止" disabled={props.loading || !id} />
+                      <ActionButton onClick={() => props.onAction("restart", id)} label="重启" disabled={props.loading || !id} />
+                      <ActionButton onClick={() => props.onAction("remove", id)} label="删除" danger disabled={props.loading || !id} />
                     </div>
                   </Td>
                 </tr>

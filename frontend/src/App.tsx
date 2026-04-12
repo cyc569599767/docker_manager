@@ -39,9 +39,19 @@ type ImagesFilter = {
 
 const AUDIT_PAGE_LIMIT = 200;
 const DEFAULT_AUDIT_FILTER: AuditFilter = { query: "", result: "all" };
+const DEFAULT_CONTAINERS_FILTER: ContainersFilter = { query: "", status: "all" };
+const DEFAULT_IMAGES_FILTER: ImagesFilter = { query: "" };
 
 function isSameAuditFilter(a: AuditFilter, b: AuditFilter) {
   return a.query === b.query && a.result === b.result;
+}
+
+function isSameContainersFilter(a: ContainersFilter, b: ContainersFilter) {
+  return a.query === b.query && a.status === b.status;
+}
+
+function isSameImagesFilter(a: ImagesFilter, b: ImagesFilter) {
+  return a.query === b.query;
 }
 
 function parseHashPathAndSearch(hash: string) {
@@ -73,6 +83,46 @@ function buildAuditHash(filter: AuditFilter) {
   return search ? `#/audit?${search}` : "#/audit";
 }
 
+function getContainersFilterFromHash(hash: string): ContainersFilter {
+  const { path, search } = parseHashPathAndSearch(hash);
+  if (path !== "containers") return DEFAULT_CONTAINERS_FILTER;
+
+  const params = new URLSearchParams(search);
+  const query = (params.get("q") || "").trim();
+  const statusValue = (params.get("status") || "all").toLowerCase();
+  const status: ContainersFilter["status"] =
+    statusValue === "running" || statusValue === "stopped" || statusValue === "other" ? statusValue : "all";
+  return { query, status };
+}
+
+function buildContainersHash(filter: ContainersFilter) {
+  const params = new URLSearchParams();
+  const query = filter.query.trim();
+  if (query) params.set("q", query);
+  if (filter.status !== "all") params.set("status", filter.status);
+
+  const search = params.toString();
+  return search ? `#/containers?${search}` : "#/containers";
+}
+
+function getImagesFilterFromHash(hash: string): ImagesFilter {
+  const { path, search } = parseHashPathAndSearch(hash);
+  if (path !== "images") return DEFAULT_IMAGES_FILTER;
+
+  const params = new URLSearchParams(search);
+  const query = (params.get("q") || "").trim();
+  return { query };
+}
+
+function buildImagesHash(filter: ImagesFilter) {
+  const params = new URLSearchParams();
+  const query = filter.query.trim();
+  if (query) params.set("q", query);
+
+  const search = params.toString();
+  return search ? `#/images?${search}` : "#/images";
+}
+
 export function App() {
   const { state, dispatch } = useUiStore();
   const { tab, hash, navigate } = useHashTabRoute();
@@ -87,10 +137,7 @@ export function App() {
   const [containersTotal, setContainersTotal] = useState(0);
   const [containersFilter, setContainersFilter] = usePersistedState<ContainersFilter>(
     "panel.containers.serverFilter",
-    {
-      query: "",
-      status: "all",
-    }
+    getContainersFilterFromHash(window.location.hash || "")
   );
   const [debouncedContainersFilter, setDebouncedContainersFilter] = useState<ContainersFilter>(containersFilter);
   const [images, setImages] = useState<ImageSummary[]>([]);
@@ -98,9 +145,10 @@ export function App() {
   const [imagesPage, setImagesPage] = useState(1);
   const [imagesPageSize, setImagesPageSize] = useState(20);
   const [imagesTotal, setImagesTotal] = useState(0);
-  const [imagesFilter, setImagesFilter] = usePersistedState<ImagesFilter>("panel.images.serverFilter", {
-    query: "",
-  });
+  const [imagesFilter, setImagesFilter] = usePersistedState<ImagesFilter>(
+    "panel.images.serverFilter",
+    getImagesFilterFromHash(window.location.hash || "")
+  );
   const [debouncedImagesFilter, setDebouncedImagesFilter] = useState<ImagesFilter>(imagesFilter);
   const [volumes, setVolumes] = useState<Volume[]>([]);
   const [networks, setNetworks] = useState<Network[]>([]);
@@ -366,6 +414,30 @@ export function App() {
   }, [hash, tab]);
 
   useEffect(() => {
+    if (tab !== "containers") return;
+    const nextFilter = getContainersFilterFromHash(hash || window.location.hash || "");
+    const sameFilter = isSameContainersFilter(containersFilter, nextFilter);
+    const sameDebounced = isSameContainersFilter(debouncedContainersFilter, nextFilter);
+    if (sameFilter && sameDebounced) return;
+
+    setContainersFilter(nextFilter);
+    setDebouncedContainersFilter(nextFilter);
+    setContainersPage(1);
+  }, [containersFilter, debouncedContainersFilter, hash, setContainersFilter, tab]);
+
+  useEffect(() => {
+    if (tab !== "images") return;
+    const nextFilter = getImagesFilterFromHash(hash || window.location.hash || "");
+    const sameFilter = isSameImagesFilter(imagesFilter, nextFilter);
+    const sameDebounced = isSameImagesFilter(debouncedImagesFilter, nextFilter);
+    if (sameFilter && sameDebounced) return;
+
+    setImagesFilter(nextFilter);
+    setDebouncedImagesFilter(nextFilter);
+    setImagesPage(1);
+  }, [debouncedImagesFilter, hash, imagesFilter, setImagesFilter, tab]);
+
+  useEffect(() => {
     if (!hasLoadedInitialDataRef.current) return;
     if (tab !== "audit") return;
     void runLoadingTask(() => loadAudits(debouncedAuditFilter));
@@ -403,6 +475,30 @@ export function App() {
       `${window.location.pathname}${window.location.search}${nextHash}`
     );
   }, [debouncedAuditFilter, tab]);
+
+  useEffect(() => {
+    if (tab !== "containers") return;
+    const nextHash = buildContainersHash(debouncedContainersFilter);
+    if ((window.location.hash || "") === nextHash) return;
+
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}${nextHash}`
+    );
+  }, [debouncedContainersFilter, tab]);
+
+  useEffect(() => {
+    if (tab !== "images") return;
+    const nextHash = buildImagesHash(debouncedImagesFilter);
+    if ((window.location.hash || "") === nextHash) return;
+
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}${nextHash}`
+    );
+  }, [debouncedImagesFilter, tab]);
 
   useEffect(() => {
     return () => {
@@ -573,15 +669,24 @@ export function App() {
 
   const handleTabChange = useCallback(
     (nextTab: TabKey) => {
-      if (nextTab !== "audit") {
-        navigate(nextTab);
+      if (nextTab === "containers") {
+        window.location.hash = buildContainersHash(containersFilter).replace(/^#/, "");
         return;
       }
 
-      const nextHash = buildAuditHash(auditFilter).replace(/^#/, "");
-      window.location.hash = nextHash;
+      if (nextTab === "images") {
+        window.location.hash = buildImagesHash(imagesFilter).replace(/^#/, "");
+        return;
+      }
+
+      if (nextTab === "audit") {
+        window.location.hash = buildAuditHash(auditFilter).replace(/^#/, "");
+        return;
+      }
+
+      navigate(nextTab);
     },
-    [auditFilter, navigate]
+    [auditFilter, containersFilter, imagesFilter, navigate]
   );
 
   return (
