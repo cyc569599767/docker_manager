@@ -147,3 +147,16 @@ docker compose down
 - 审计日志写入：`backend/data/audit.log`。
 - 当前 compose 默认挂载 Linux Socket：`/var/run/docker.sock`。
   Windows Named Pipe 场景请按环境修改挂载配置。
+
+## 构建网络超时排查（Cargo / npm）
+
+若 `docker compose up --build -d` 期间出现依赖拉取超时（如 crates.io index 或 npm registry）：
+
+1. 先单独构建查看详细阶段：
+   - `docker compose build --no-cache backend`
+   - `docker compose build --no-cache frontend`
+2. 本项目 Dockerfile 已配置镜像源与重试/超时参数（Rust 使用 rsproxy，npm 使用 npmmirror）。
+3. 若仍失败，优先检查：
+   - Docker Desktop 代理配置
+   - 公司网络防火墙策略
+   - DNS（可尝试公共 DNS）
