@@ -31,7 +31,9 @@ cd backend
 cargo run
 ```
 
-默认地址：`http://127.0.0.1:8080`
+默认监听地址：`0.0.0.0:8080`（访问时用服务器 IP 或 `127.0.0.1`）
+
+可通过环境变量 `BIND_ADDR` 覆盖监听地址。
 
 ### 2) 启动前端
 
@@ -43,7 +45,7 @@ npm run dev
 
 默认地址：`http://127.0.0.1:5173`
 
-前端默认请求后端 `http://127.0.0.1:8080`，可通过 `VITE_API_BASE` 覆盖。
+前端默认请求当前主机的 `:8080` 后端，可通过 `VITE_API_BASE` 覆盖。
 
 ### 3) docker-compose 一键启动
 
@@ -52,7 +54,7 @@ docker compose up --build -d
 ```
 
 - 前端：`http://127.0.0.1:5173`
-- 后端：`http://127.0.0.1:8080`
+- 后端：`http://<服务器IP>:8080`
 
 停止：
 
@@ -147,6 +149,7 @@ docker compose down
 - 审计日志写入：`backend/data/audit.log`。
 - 当前 compose 默认挂载 Linux Socket：`/var/run/docker.sock`。
   Windows Named Pipe 场景请按环境修改挂载配置。
+- 如果直接从外网访问 `5173/8080`，记得放行防火墙/安全组端口；不想暴露 `8080` 时，建议加一层反向代理转发 `/api`。
 
 ## 构建网络超时排查（Cargo / npm）
 

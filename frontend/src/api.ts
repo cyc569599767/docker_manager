@@ -9,7 +9,16 @@ import type {
   Volume,
 } from "./types";
 
-const API_BASE = (import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080").replace(/\/+$/, "");
+const defaultApiBase =
+  typeof window !== "undefined"
+    ? (() => {
+        const url = new URL(window.location.href);
+        url.port = "8080";
+        return `${url.protocol}//${url.host}`;
+      })()
+    : "http://127.0.0.1:8080";
+
+const API_BASE = (import.meta.env.VITE_API_BASE || defaultApiBase).replace(/\/+$/, "");
 
 type ListQuery = {
   limit?: number;

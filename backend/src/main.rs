@@ -238,8 +238,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080").await?;
-    println!("backend started at http://127.0.0.1:8080");
+    let bind_addr = std::env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
+    let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
+    println!("backend started at http://{bind_addr}");
     axum::serve(listener, app).await?;
     Ok(())
 }
