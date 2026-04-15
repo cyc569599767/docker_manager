@@ -150,6 +150,8 @@ docker compose down
 ## 注意事项
 
 - 后端依赖本机 Docker Engine（Linux Socket 或 Windows Named Pipe）。
+- 后端镜像内固定安装 Docker 官方 `docker-ce-cli` 版本 `5:29.3.0-1~debian.12~bookworm`，用于避免旧版 `docker.io` 带来的 API 版本过低问题。
+- 如需升级 CLI 版本，修改 `backend/Dockerfile` 里的 `DOCKER_CLI_VERSION` 后重新构建。
 - 审计日志写入：`backend/data/audit.log`。
 - 当前 compose 默认挂载 Linux Socket：`/var/run/docker.sock`。
   Windows Named Pipe 场景请按环境修改挂载配置。
