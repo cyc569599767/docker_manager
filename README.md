@@ -59,6 +59,7 @@ docker compose up --build -d
 Docker 部署时，页面里的 API 默认走前端容器 Nginx 反代，不再写死宿主机 `8080`。
 如需修改前端宿主机端口，设置环境变量 `FRONTEND_PORT`，例如 `FRONTEND_PORT=8088 docker compose up -d`。
 也可以复制根目录的 `.env.example` 为 `.env` 后再调整。
+登录时请输入 `AUTH_TOKEN`，默认值为 `docker-manage-token`。
 
 停止：
 
@@ -153,6 +154,7 @@ docker compose down
 - 后端镜像内固定安装 Docker 官方 `docker-ce-cli` 版本 `5:29.3.0-1~debian.12~bookworm`，用于避免旧版 `docker.io` 带来的 API 版本过低问题。
 - 如需升级 CLI 版本，修改 `backend/Dockerfile` 里的 `DOCKER_CLI_VERSION` 后重新构建。
 - 镜像列表默认只展示已打标签的顶层镜像，避免 dangling 镜像把仓库/Tag 列搞乱。
+- 登录认证使用 `AUTH_TOKEN`，通过 `Authorization: Bearer <token>` 访问后端 API。
 - 审计日志写入：`backend/data/audit.log`。
 - 当前 compose 默认挂载 Linux Socket：`/var/run/docker.sock`。
   Windows Named Pipe 场景请按环境修改挂载配置。

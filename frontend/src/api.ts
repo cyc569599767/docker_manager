@@ -9,6 +9,16 @@ import type {
   Volume,
 } from "./types";
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 function normalizeApiBase(rawBase?: string) {
   const base = (rawBase || "").trim().replace(/\/+$/, "");
   if (!base) return "/api";
@@ -16,6 +26,26 @@ function normalizeApiBase(rawBase?: string) {
 }
 
 const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE);
+const AUTH_TOKEN_STORAGE_KEY = "docker_manage.auth_token";
+
+type RequestOptions = {
+  auth?: boolean;
+};
+
+export function getStoredAuthToken() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
+}
+
+export function setStoredAuthToken(token: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token.trim());
+}
+
+export function clearStoredAuthToken() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+}
 
 type ListQuery = {
   limit?: number;
@@ -53,6 +83,25 @@ function withListQuery(path: string, query?: ListQuery) {
   return search ? `${path}?${search}` : path;
 }
 
+function buildRequestInit(init?: RequestInit, options?: RequestOptions) {
+  const headers = new Headers(init?.headers);
+  if (options?.auth !== false) {
+    const token = getStoredAuthToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
+
+  return {
+    ...init,
+    headers,
+  };
+}
+
+async function fetchApi(path: string, init?: RequestInit, options?: RequestOptions) {
+  return fetch(`${API_BASE}${path}`, buildRequestInit(init, options));
+}
+
 async function getErrorMessage(response: Response): Promise<string> {
   const contentType = response.headers.get("content-type") || "";
 
@@ -70,18 +119,18 @@ async function getErrorMessage(response: Response): Promise<string> {
   return text || `请求失败: ${response.status}`;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, init);
+async function request<T>(path: string, init?: RequestInit, options?: RequestOptions): Promise<T> {
+  const response = await fetchApi(path, init, options);
   if (!response.ok) {
-    throw new Error(await getErrorMessage(response));
+    throw new ApiError(response.status, await getErrorMessage(response));
   }
   return response.json() as Promise<T>;
 }
 
 async function requestListPage<T>(path: string): Promise<ListPageResult<T>> {
-  const response = await fetch(`${API_BASE}${path}`);
+  const response = await fetchApi(path);
   if (!response.ok) {
-    throw new Error(await getErrorMessage(response));
+    throw new ApiError(response.status, await getErrorMessage(response));
   }
 
   const items = (await response.json()) as T[];
@@ -102,6 +151,19 @@ async function requestListPage<T>(path: string): Promise<ListPageResult<T>> {
 export const apiBase = API_BASE;
 
 export const api = {
+  auth: {
+    login: (token: string) =>
+      request<{ message: string }>(
+        "/auth/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        },
+        { auth: false }
+      ),
+    me: () => request<{ message: string }>("/auth/me"),
+  },
   health: () => request<HealthStatus>("/health"),
   images: (query?: ListQuery) => request<ImageSummary[]>(withListQuery("/images", query)),
   imagesPage: (query?: ListQuery) => requestListPage<ImageSummary>(withListQuery("/images", query)),

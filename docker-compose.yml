@@ -5,6 +5,8 @@ services:
     build:
       context: ./backend
     container_name: docker-manage-backend
+    environment:
+      AUTH_TOKEN: ${AUTH_TOKEN:-docker-manage-token}
     expose:
       - "8080"
     volumes:

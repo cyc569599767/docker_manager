@@ -9,8 +9,9 @@ use std::{
 };
 
 use axum::{
-    extract::{Path, Query, State},
-    http::{HeaderMap, HeaderValue, StatusCode},
+    extract::{Path, Query, Request, State},
+    http::{header, HeaderMap, HeaderValue, Method, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
     routing::{delete, get, post},
     Json, Router,
@@ -40,6 +41,7 @@ struct AppState {
     audit: Arc<AuditLogger>,
     pull_tasks: Arc<Mutex<HashMap<String, PullTaskState>>>,
     pull_counter: Arc<AtomicU64>,
+    auth_token: String,
 }
 
 #[derive(Clone)]
@@ -156,6 +158,11 @@ struct PullImageRequest {
     image: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct AuthLoginRequest {
+    token: String,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct ContainerSummary {
     #[serde(alias = "ID")]
@@ -208,15 +215,16 @@ struct NetworkSummary {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let auth_token = load_auth_token();
     let audit_logger = AuditLogger::new("data/audit.log".into()).await?;
     let state = AppState {
         audit: Arc::new(audit_logger),
         pull_tasks: Arc::new(Mutex::new(HashMap::new())),
         pull_counter: Arc::new(AtomicU64::new(1)),
+        auth_token,
     };
 
-    let app = Router::new()
-        .route("/api/health", get(health))
+    let protected_api = Router::new()
         .route("/api/images", get(list_images))
         .route("/api/images/pull", post(pull_image))
         .route("/api/images/pull/:task_id", get(get_pull_progress))
@@ -230,6 +238,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/volumes", get(list_volumes))
         .route("/api/networks", get(list_networks))
         .route("/api/audit", get(get_audit))
+        .route("/api/auth/me", get(auth_me))
+        .layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    let app = Router::new()
+        .route("/api/health", get(health))
+        .route("/api/auth/login", post(auth_login))
+        .merge(protected_api)
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -257,6 +272,63 @@ async fn health() -> Json<HealthResponse> {
             docker_version: "unknown".to_string(),
         }),
     }
+}
+
+async fn auth_login(
+    State(state): State<AppState>,
+    Json(req): Json<AuthLoginRequest>,
+) -> Result<Json<SimpleResponse>, ApiError> {
+    let token = req.token.trim();
+    if token.is_empty() {
+        return Err(ApiError::bad_request("token 不能为空"));
+    }
+    if token != state.auth_token {
+        return Err(ApiError::unauthorized("token 无效"));
+    }
+
+    Ok(Json(SimpleResponse {
+        message: "登录成功".to_string(),
+    }))
+}
+
+async fn auth_me() -> Json<SimpleResponse> {
+    Json(SimpleResponse {
+        message: "ok".to_string(),
+    })
+}
+
+async fn require_auth(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Result<axum::response::Response, ApiError> {
+    if req.method() == Method::OPTIONS {
+        return Ok(next.run(req).await);
+    }
+
+    match extract_bearer_token(req.headers()) {
+        Some(token) if token == state.auth_token => Ok(next.run(req).await),
+        _ => Err(ApiError::unauthorized("未登录或 token 无效")),
+    }
+}
+
+fn extract_bearer_token(headers: &HeaderMap) -> Option<&str> {
+    let value = headers.get(header::AUTHORIZATION)?.to_str().ok()?.trim();
+    let (scheme, token) = value.split_once(' ')?;
+    if scheme.eq_ignore_ascii_case("Bearer") {
+        let token = token.trim();
+        (!token.is_empty()).then_some(token)
+    } else {
+        None
+    }
+}
+
+fn load_auth_token() -> String {
+    std::env::var("AUTH_TOKEN")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "docker-manage-token".to_string())
 }
 
 async fn list_images(Query(query): Query<ListQuery>) -> Result<impl IntoResponse, ApiError> {
@@ -1262,6 +1334,13 @@ impl ApiError {
     fn bad_request(message: &str) -> Self {
         Self {
             status: StatusCode::BAD_REQUEST,
+            message: message.to_string(),
+        }
+    }
+
+    fn unauthorized(message: &str) -> Self {
+        Self {
+            status: StatusCode::UNAUTHORIZED,
             message: message.to_string(),
         }
     }

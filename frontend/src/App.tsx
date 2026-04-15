@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./api";
+import { ApiError, api, clearStoredAuthToken, getStoredAuthToken, setStoredAuthToken } from "./api";
+import { LoginScreen } from "./components/auth/LoginScreen";
 import { StatusBanner } from "./components/header/StatusBanner";
 import { SummaryCards, type SummaryCardItem } from "./components/header/SummaryCards";
 import { TabBar } from "./components/header/TabBar";
@@ -36,6 +37,8 @@ type ContainersFilter = {
 type ImagesFilter = {
   query: string;
 };
+
+type AuthStatus = "checking" | "guest" | "authed";
 
 const AUDIT_PAGE_LIMIT = 200;
 const DEFAULT_AUDIT_FILTER: AuditFilter = { query: "", result: "all" };
@@ -129,6 +132,10 @@ export function App() {
   const hasLoadedInitialDataRef = useRef(false);
   const loadingTaskCountRef = useRef(0);
   const auditAbortControllerRef = useRef<AbortController | null>(null);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>("checking");
+  const [loginToken, setLoginToken] = useState(() => getStoredAuthToken());
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const [containers, setContainers] = useState<ContainerSummary[]>([]);
   const [allContainers, setAllContainers] = useState<ContainerSummary[]>([]);
@@ -278,7 +285,57 @@ export function App() {
   }, [auditHasMore, auditLoadingMore, auditNextFrom, loading]);
   const loadHealth = useCallback(async () => setHealth(await api.health()), []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const token = getStoredAuthToken().trim();
+
+    if (!token) {
+      setLoginToken("");
+      setLoginError("");
+      setAuthStatus("guest");
+      return;
+    }
+
+    setLoginToken(token);
+
+    void (async () => {
+      try {
+        await api.auth.me();
+        if (!cancelled) {
+          setLoginError("");
+          setAuthStatus("authed");
+        }
+      } catch (error) {
+        if (cancelled) return;
+
+        if (error instanceof ApiError && error.status === 401) {
+          clearStoredAuthToken();
+          setLoginToken("");
+          setLoginError("Token 已失效，请重新登录");
+        } else {
+          setLoginError(error instanceof Error ? `无法验证登录状态：${error.message}` : "无法验证登录状态");
+        }
+        setAuthStatus("guest");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authStatus === "authed") return;
+    hasLoadedInitialDataRef.current = false;
+    loadingTaskCountRef.current = 0;
+    auditAbortControllerRef.current?.abort();
+    setLoading(false);
+    setError("");
+  }, [authStatus]);
+
   const loadOverviewData = useCallback(async () => {
+    if (authStatus !== "authed") return;
+
     await Promise.all([
       loadHealth(),
       loadContainerCatalog(),
@@ -302,10 +359,13 @@ export function App() {
     loadImages,
     loadNetworks,
     loadVolumes,
+    authStatus,
   ]);
 
   const loadActiveTabData = useCallback(
     async (activeTab: TabKey, selectedContainerId: string) => {
+      if (authStatus !== "authed") return;
+
       if (activeTab === "containers") {
         await Promise.all([
           loadContainers(containersPage, containersPageSize, debouncedContainersFilter),
@@ -351,6 +411,7 @@ export function App() {
       loadImages,
       loadNetworks,
       loadVolumes,
+      authStatus,
     ]
   );
 
@@ -361,6 +422,13 @@ export function App() {
     try {
       await task();
     } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        clearStoredAuthToken();
+        setLoginToken("");
+        setLoginError("token 已失效，请重新登录");
+        setAuthStatus("guest");
+        return;
+      }
       setError(e instanceof Error ? e.message : "未知错误");
     } finally {
       loadingTaskCountRef.current = Math.max(0, loadingTaskCountRef.current - 1);
@@ -368,7 +436,32 @@ export function App() {
     }
   }, []);
 
+  const handleLogin = useCallback(async () => {
+    const token = loginToken.trim();
+    if (!token) {
+      setLoginError("Please enter token");
+      return;
+    }
+
+    setLoginLoading(true);
+    setLoginError("");
+    try {
+      await api.auth.login(token);
+      setStoredAuthToken(token);
+      setLoginToken(token);
+      hasLoadedInitialDataRef.current = false;
+      setAuthStatus("authed");
+      setError("");
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Login failed");
+    } finally {
+      setLoginLoading(false);
+    }
+  }, [loginToken]);
+
   const refreshAllData = useCallback(async () => {
+    if (authStatus !== "authed") return;
+
     await runLoadingTask(async () => {
       await loadOverviewData();
       if (tab === "audit") {
@@ -382,28 +475,31 @@ export function App() {
         }
       }
     });
-  }, [auditFilter, loadAudits, loadOverviewData, runLoadingTask, state.selectedContainerId, tab]);
+  }, [auditFilter, authStatus, loadAudits, loadOverviewData, runLoadingTask, state.selectedContainerId, tab]);
 
   useEffect(() => {
+    if (authStatus !== "authed") return;
     if (hasLoadedInitialDataRef.current) return;
 
     void (async () => {
       await refreshAllData();
       hasLoadedInitialDataRef.current = true;
     })();
-  }, [refreshAllData]);
+  }, [authStatus, refreshAllData]);
 
   useEffect(() => {
+    if (authStatus !== "authed") return;
     if (!hasLoadedInitialDataRef.current) return;
     void runLoadingTask(() => loadActiveTabData(tab, state.selectedContainerId));
-  }, [loadActiveTabData, runLoadingTask, state.selectedContainerId, tab]);
+  }, [authStatus, loadActiveTabData, runLoadingTask, state.selectedContainerId, tab]);
 
   useEffect(() => {
+    if (authStatus !== "authed") return;
     if (!hasLoadedInitialDataRef.current) return;
     if (tab !== "containers") return;
     if (allImages.length > 0) return;
     void runLoadingTask(() => loadImageCatalog());
-  }, [allImages.length, loadImageCatalog, runLoadingTask, tab]);
+  }, [allImages.length, authStatus, loadImageCatalog, runLoadingTask, tab]);
 
   useEffect(() => {
     if (tab !== "audit") return;
@@ -438,10 +534,11 @@ export function App() {
   }, [debouncedImagesFilter, hash, imagesFilter, setImagesFilter, tab]);
 
   useEffect(() => {
+    if (authStatus !== "authed") return;
     if (!hasLoadedInitialDataRef.current) return;
     if (tab !== "audit") return;
     void runLoadingTask(() => loadAudits(debouncedAuditFilter));
-  }, [debouncedAuditFilter, loadAudits, runLoadingTask, tab]);
+  }, [authStatus, debouncedAuditFilter, loadAudits, runLoadingTask, tab]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -688,6 +785,28 @@ export function App() {
     },
     [auditFilter, containersFilter, imagesFilter, navigate]
   );
+
+  if (authStatus === "checking") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+        <div className="rounded-xl border border-slate-200 bg-white px-6 py-5 text-sm text-slate-600 shadow-sm">
+          正在验证登录状态...
+        </div>
+      </div>
+    );
+  }
+
+  if (authStatus !== "authed") {
+    return (
+      <LoginScreen
+        token={loginToken}
+        onTokenChange={setLoginToken}
+        onSubmit={() => void handleLogin()}
+        loading={loginLoading}
+        error={loginError}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl p-6">
