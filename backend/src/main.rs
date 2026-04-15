@@ -260,7 +260,7 @@ async fn health() -> Json<HealthResponse> {
 }
 
 async fn list_images(Query(query): Query<ListQuery>) -> Result<impl IntoResponse, ApiError> {
-    let text = run_docker(&["images", "--format", "{{json .}}", "--no-trunc", "--all"]).await?;
+    let text = run_docker(&["image", "ls", "--format", "{{json .}}", "--no-trunc"]).await?;
     let items = apply_image_filters(parse_json_lines::<ImageSummary>(&text)?, query.q.as_deref());
     let page = paginate_list(items, query.from, query.limit);
     Ok((build_list_headers(&page), Json(page.items)))
