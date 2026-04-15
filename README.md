@@ -45,7 +45,7 @@ npm run dev
 
 默认地址：`http://127.0.0.1:5173`
 
-前端默认请求当前主机的 `:8080` 后端，可通过 `VITE_API_BASE` 覆盖。
+前端默认通过同源 `/api` 访问后端；`VITE_API_BASE` 可用于直连自定义后端地址。
 
 ### 3) docker-compose 一键启动
 
@@ -53,8 +53,12 @@ npm run dev
 docker compose up --build -d
 ```
 
-- 前端：`http://127.0.0.1:5173`
-- 后端：`http://<服务器IP>:8080`
+- 前端：`http://<服务器IP>:5173`
+- 后端：仅容器内访问，不再对外暴露端口
+
+Docker 部署时，页面里的 API 默认走前端容器 Nginx 反代，不再写死宿主机 `8080`。
+如需修改前端宿主机端口，设置环境变量 `FRONTEND_PORT`，例如 `FRONTEND_PORT=8088 docker compose up -d`。
+也可以复制根目录的 `.env.example` 为 `.env` 后再调整。
 
 停止：
 
@@ -149,7 +153,8 @@ docker compose down
 - 审计日志写入：`backend/data/audit.log`。
 - 当前 compose 默认挂载 Linux Socket：`/var/run/docker.sock`。
   Windows Named Pipe 场景请按环境修改挂载配置。
-- 如果直接从外网访问 `5173/8080`，记得放行防火墙/安全组端口；不想暴露 `8080` 时，建议加一层反向代理转发 `/api`。
+- 如果直接从外网访问前端端口，记得放行防火墙/安全组端口；后端已默认不对外暴露。
+- 如果修改了宿主机端口映射，前端页面仍应保持可用；API 地址默认显示为 `/api`。
 
 ## 构建网络超时排查（Cargo / npm）
 

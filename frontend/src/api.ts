@@ -9,16 +9,13 @@ import type {
   Volume,
 } from "./types";
 
-const defaultApiBase =
-  typeof window !== "undefined"
-    ? (() => {
-        const url = new URL(window.location.href);
-        url.port = "8080";
-        return `${url.protocol}//${url.host}`;
-      })()
-    : "http://127.0.0.1:8080";
+function normalizeApiBase(rawBase?: string) {
+  const base = (rawBase || "").trim().replace(/\/+$/, "");
+  if (!base) return "/api";
+  return base.endsWith("/api") ? base : `${base}/api`;
+}
 
-const API_BASE = (import.meta.env.VITE_API_BASE || defaultApiBase).replace(/\/+$/, "");
+const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE);
 
 type ListQuery = {
   limit?: number;
@@ -105,21 +102,21 @@ async function requestListPage<T>(path: string): Promise<ListPageResult<T>> {
 export const apiBase = API_BASE;
 
 export const api = {
-  health: () => request<HealthStatus>("/api/health"),
-  images: (query?: ListQuery) => request<ImageSummary[]>(withListQuery("/api/images", query)),
-  imagesPage: (query?: ListQuery) => requestListPage<ImageSummary>(withListQuery("/api/images", query)),
+  health: () => request<HealthStatus>("/health"),
+  images: (query?: ListQuery) => request<ImageSummary[]>(withListQuery("/images", query)),
+  imagesPage: (query?: ListQuery) => requestListPage<ImageSummary>(withListQuery("/images", query)),
   pullImage: (image: string) =>
-    request<PullStartResponse>(`/api/images/pull`, {
+    request<PullStartResponse>(`/images/pull`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image }),
     }),
   pullImageProgress: (taskId: string, from = 0) =>
     request<PullProgressResponse>(
-      `/api/images/pull/${encodeURIComponent(taskId)}?from=${encodeURIComponent(String(from))}`
+      `/images/pull/${encodeURIComponent(taskId)}?from=${encodeURIComponent(String(from))}`
     ),
-  containers: (query?: ListQuery) => request<ContainerSummary[]>(withListQuery("/api/containers", query)),
-  containersPage: (query?: ListQuery) => requestListPage<ContainerSummary>(withListQuery("/api/containers", query)),
+  containers: (query?: ListQuery) => request<ContainerSummary[]>(withListQuery("/containers", query)),
+  containersPage: (query?: ListQuery) => requestListPage<ContainerSummary>(withListQuery("/containers", query)),
   createContainer: (payload: {
     image: string;
     name?: string;
@@ -129,36 +126,36 @@ export const api = {
     network?: string;
     command?: string[];
   }) =>
-    request<{ message: string }>(`/api/containers/create`, {
+    request<{ message: string }>(`/containers/create`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
   startContainer: (id: string) =>
-    request<{ message: string }>(`/api/containers/${encodeURIComponent(id)}/start`, {
+    request<{ message: string }>(`/containers/${encodeURIComponent(id)}/start`, {
       method: "POST",
     }),
   stopContainer: (id: string) =>
-    request<{ message: string }>(`/api/containers/${encodeURIComponent(id)}/stop`, {
+    request<{ message: string }>(`/containers/${encodeURIComponent(id)}/stop`, {
       method: "POST",
     }),
   restartContainer: (id: string) =>
-    request<{ message: string }>(`/api/containers/${encodeURIComponent(id)}/restart`, {
+    request<{ message: string }>(`/containers/${encodeURIComponent(id)}/restart`, {
       method: "POST",
     }),
   removeContainer: (id: string) =>
-    request<{ message: string }>(`/api/containers/${encodeURIComponent(id)}?force=true`, {
+    request<{ message: string }>(`/containers/${encodeURIComponent(id)}?force=true`, {
       method: "DELETE",
     }),
-  volumes: (query?: ListQuery) => request<Volume[]>(withListQuery("/api/volumes", query)),
-  networks: (query?: ListQuery) => request<Network[]>(withListQuery("/api/networks", query)),
-  logs: (id: string) => request<string[]>(`/api/containers/${encodeURIComponent(id)}/logs?tail=200`),
+  volumes: (query?: ListQuery) => request<Volume[]>(withListQuery("/volumes", query)),
+  networks: (query?: ListQuery) => request<Network[]>(withListQuery("/networks", query)),
+  logs: (id: string) => request<string[]>(`/containers/${encodeURIComponent(id)}/logs?tail=200`),
   audit: (limit = 200, from = 0, q = "", result = "", signal?: AbortSignal) => {
     const params = new URLSearchParams();
     params.set("limit", String(limit));
     params.set("from", String(from));
     if (q.trim()) params.set("q", q.trim());
     if (result.trim()) params.set("result", result.trim());
-    return request<AuditListResponse>(`/api/audit?${params.toString()}`, { signal });
+    return request<AuditListResponse>(`/audit?${params.toString()}`, { signal });
   },
 };
